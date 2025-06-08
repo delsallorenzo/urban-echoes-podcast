@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Repositioning Tool</title>
+    <style>
+        :root {
+            --background-color: #212121;
+            --sidebar-bg: #1F1F1F;
+            --text-color: #e0e0e0;
+            --border-color: #424242;
+            --drop-zone-bg: #1F1F1F;
+            --drop-zone-border: #555555;
+            --button-bg-light: #e0e0e0;
+            --button-text-dark: #1F1F1F;
+            --button-bg-light-hover: #ffffff;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Martian Mono', monospace;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            font-size: 11px;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .main-container { display: flex; width: 100%; height: 100%; }
+        
+        .controls-container {
+            flex: 0 0 380px;
+            background-color: var(--sidebar-bg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 2rem;
+            align-items: flex-start;
+        }
+        .canvas-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            position: relative;
+            overflow: auto;
+        }
+        p {
+            margin-bottom: 1.5rem;
+            max-width: 400px;
+            line-height: 1.5;
+            font-weight: 400;
+            text-transform: uppercase;
+        }
+        .download-btn {
+            background-color: var(--button-bg-light);
+            color: var(--button-text-dark);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 0;
+            font-size: 11px;
+            font-weight: 400;
+            text-transform: uppercase;
+            cursor: pointer;
+            font-family: 'Martian Mono', monospace;
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+        .download-btn:hover { background-color: var(--button-bg-light-hover); transform: translateY(-2px); }
+        .download-btn:disabled { background-color: #444; color: #888; cursor: not-allowed; transform: none; }
+        
+        #drop-zone, #image-canvas {
+            display: flex;
+            width: 100%;
+            max-width: min(85vh, 1000px);
+            max-height: min(85vh, 1000px);
+            aspect-ratio: 1 / 1;
+            border-radius: 0;
+        }
+
+        #drop-zone {
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--drop-zone-bg);
+            border: 2px dashed var(--drop-zone-border);
+            transition: background-color 0.3s, border-color 0.3s;
+            position: absolute;
+            text-align: center;
+            z-index: 10;
+        }
+        #drop-zone.drag-over { background-color: #444; border-color: var(--text-color); }
+        #drop-zone p { margin-bottom: 0.5rem; font-weight: 400; }
+        
+        #image-canvas {
+            display: block;
+            background-color: #000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            cursor: grab;
+        }
+        #image-canvas.active { cursor: grabbing; }
+        #image-canvas.drag-over { outline: 2px dashed var(--text-color); outline-offset: -4px; }
+
+        @media (max-width: 768px) {
+            body { overflow: auto; }
+            .main-container { flex-direction: column; height: auto; }
+            .controls-container { order: 1; align-items: center; text-align: center; flex-basis: auto; }
+            .canvas-area { order: 2; padding: 1rem; min-height: 80vw; }
+            #drop-zone, #image-canvas { max-width: 90vw; max-height: 90vw; }
+        }
+        .text-inputs-container {
+            margin-bottom: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            width: 100%;
+            max-width: 400px;
+        }
+        .text-inputs-container input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 0;
+            font-size: 11px;
+            text-transform: uppercase;
+            font-family: 'Martian Mono', monospace;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="controls-container">
+            <p>Drag an image into the frame on the right, reposition it as you like, and then click "Download" to save it.</p>
+            <div class="text-inputs-container">
+                <div>
+                    <input type="text" id="text-top-left-input" value="PODCAST 000">
+                </div>
+                <div>
+                    <input type="text" id="text-top-right-input" value="ARTIST NAME">
+                </div>
+                <div>
+                    <input type="text" id="text-new-right-input" value="EXTRA INFO">
+                </div>
+            </div>
+            <button id="download-btn" class="download-btn" disabled>Download JPG</button>
+        </div>
+        <div class="canvas-area">
+            <div id="drop-zone">
+                <p>drag your image here</p>
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="#555555" viewBox="0 0 16 16">
+                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+                </svg>
+            </div>
+            <canvas id="image-canvas" width="1000" height="1000"></canvas>
+        </div>
+    </div>
+
+<script>
+    // Constants
+    const FONT_NAME_FERRITE = "FerriteCoreDX-Display";
+    const FONT_NAME_ORBIT = "Orbit-Regular";
+    // MODIFIED: Drawing constants scaled up to match the new higher canvas resolution
+    const TEXT_FONT_SIZE = 20;
+    const TEXT_MARGIN = 14;
+    const KERNING_VALUE_FERRITE = 3.0;
+    const VERTICAL_STRETCH_FACTOR_FERRITE = 8;
+    const HORIZONTAL_STRETCH_FACTOR_FERRITE = 1.4;
+
+    // DOM Elements
+    const dropZone = document.getElementById('drop-zone');
+    const canvas = document.getElementById('image-canvas');
+    const ctx = canvas.getContext('2d');
+    const downloadBtn = document.getElementById('download-btn');
+    const textTopLeftInput = document.getElementById('text-top-left-input');
+    const textTopRightInput = document.getElementById('text-top-right-input');
+    const textNewRightInput = document.getElementById('text-new-right-input');
+
+    // State
+    let image = null;
+    let imageX = 0, imageY = 0, imageScale = 1;
+    let isDragging = false, startX, startY;
+    let lockHorizontal = false, lockVertical = false;
+    let ferriteFontLoaded = false, orbitFontLoaded = false;
+    
+    // State for the two SVG images
+    let blackSvgImage = new Image();
+    let whiteSvgImage = new Image();
+    let blackSvgLoaded = false;
+    let whiteSvgLoaded = false;
+
+    // Initialize
+    canvas.style.display = 'none';
+
+    // Font Loading
+    const ferriteFont = new FontFace(FONT_NAME_FERRITE, 'url(assets/FerriteCoreDX-Display.ttf)');
+    ferriteFont.load().then(f => { document.fonts.add(f); ferriteFontLoaded = true; if (image) drawImage(); });
+    const orbitFont = new FontFace(FONT_NAME_ORBIT, 'url(assets/Orbit-Regular.ttf)');
+    orbitFont.load().then(f => { document.fonts.add(f); orbitFontLoaded = true; if (image) drawImage(); });
+    
+    /**
+     * Loads the two separate SVG images (white and black).
+     */
+    function loadSvgImages() {
+        blackSvgImage.onload = () => {
+            blackSvgLoaded = true;
+            console.log("SVG 'urban-eschoes-black.svg' loaded.");
+            if (image) drawImage();
+        };
+        blackSvgImage.onerror = () => console.error("Loading urban-eschoes-black.svg failed.");
+        blackSvgImage.src = 'assets/urban-eschoes-black.svg';
+
+        whiteSvgImage.onload = () => {
+            whiteSvgLoaded = true;
+            console.log("SVG 'urban-eschoes-white.svg' loaded.");
+            if (image) drawImage();
+        };
+        whiteSvgImage.onerror = () => console.error("Loading urban-eschoes-white.svg failed.");
+        whiteSvgImage.src = 'assets/urban-eschoes-white.svg';
+    }
+
+    function getTextWidthWithKerning(ctx, text, kerning) {
+        if (!text || text.length === 0) return 0;
+        let totalWidth = 0;
+        for (let i = 0; i < text.length; i++) {
+            totalWidth += ctx.measureText(text[i]).width;
+            if (i < text.length - 1) totalWidth += kerning;
+        }
+        return totalWidth;
+    }
+
+    function drawTextWithStretch(ctx, text, x, y, options = {}) {
+        const {
+            fontFamily = FONT_NAME_FERRITE, fontSize = TEXT_FONT_SIZE, kerning = KERNING_VALUE_FERRITE,
+            verticalStretch = VERTICAL_STRETCH_FACTOR_FERRITE, horizontalStretch = HORIZONTAL_STRETCH_FACTOR_FERRITE,
+            textAlign = 'left', textBaseline = 'middle'
+        } = options;
+        if (!text) return;
+        ctx.save();
+        ctx.font = `bold ${fontSize}px ${fontFamily}`;
+        ctx.textBaseline = textBaseline;
+        ctx.textAlign = 'left';
+        const totalUnstretchedWidth = getTextWidthWithKerning(ctx, text, kerning);
+        const totalStretchedWidth = totalUnstretchedWidth * horizontalStretch;
+        let startXOnScreen;
+        if (textAlign === 'right') startXOnScreen = x - totalStretchedWidth;
+        else if (textAlign === 'center') startXOnScreen = x - totalStretchedWidth / 2;
+        else startXOnScreen = x;
+        ctx.translate(0, y);
+        ctx.scale(horizontalStretch, verticalStretch);
+        ctx.translate(0, -y);
+        let currentUnscaledX = startXOnScreen / horizontalStretch;
+        for (let i = 0; i < text.length; i++) {
+            ctx.fillText(text[i], currentUnscaledX, y);
+            currentUnscaledX += ctx.measureText(text[i]).width + kerning;
+        }
+        ctx.restore();
+    }
+
+    function calculateLuminanceForArea(ctx, x, y, width, height) {
+        if (width <= 0 || height <= 0) return 128;
+        const imageData = ctx.getImageData(x, y, width, height).data;
+        let totalLuminance = 0, pixelCount = 0;
+        for (let i = 0; i < imageData.length; i += 4) {
+            totalLuminance += (0.299 * imageData[i] + 0.587 * imageData[i+1] + 0.114 * imageData[i+2]);
+            pixelCount++;
+        }
+        return pixelCount > 0 ? totalLuminance / pixelCount : 128;
+    }
+
+    function drawImage() {
+        if (!image) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(image, imageX, imageY, image.width * imageScale, image.height * imageScale);
+
+        const textLeft = textTopLeftInput.value.toUpperCase();
+        const textRight = textTopRightInput.value.toUpperCase();
+        const textNewRight = textNewRightInput.value.toUpperCase();
+        
+        const ferriteFontFamily = ferriteFontLoaded ? `"${FONT_NAME_FERRITE}"` : 'sans-serif';
+        const orbitFontFamily = orbitFontLoaded ? `"${FONT_NAME_ORBIT}"` : 'sans-serif';
+        
+        const textYPositionLeft = canvas.height / 2;
+        const yOrbitText = canvas.height * 0.42;
+        const yFerriteRightText = canvas.height / 2;
+        const xPosRightTexts = canvas.width - TEXT_MARGIN;
+
+        const luminances = [];
+        // Calculate luminance ONLY for text areas
+        ctx.font = `bold ${TEXT_FONT_SIZE}px ${ferriteFontFamily}`;
+        const textLeftWidth = getTextWidthWithKerning(ctx, textLeft, KERNING_VALUE_FERRITE) * HORIZONTAL_STRETCH_FACTOR_FERRITE;
+        const ferriteTextHeight = TEXT_FONT_SIZE * VERTICAL_STRETCH_FACTOR_FERRITE;
+        luminances.push(calculateLuminanceForArea(ctx, TEXT_MARGIN, textYPositionLeft - ferriteTextHeight / 2, textLeftWidth, ferriteTextHeight));
+        const textRightWidth = getTextWidthWithKerning(ctx, textRight, KERNING_VALUE_FERRITE) * HORIZONTAL_STRETCH_FACTOR_FERRITE;
+        luminances.push(calculateLuminanceForArea(ctx, xPosRightTexts - textRightWidth, yFerriteRightText - ferriteTextHeight / 2, textRightWidth, ferriteTextHeight));
+        ctx.font = `bold ${TEXT_FONT_SIZE}px ${orbitFontFamily}`;
+        const textNewRightWidth = getTextWidthWithKerning(ctx, textNewRight, 0);
+        const orbitTextActualHeight = TEXT_FONT_SIZE;
+        luminances.push(calculateLuminanceForArea(ctx, xPosRightTexts - textNewRightWidth, yOrbitText - orbitTextActualHeight / 2, textNewRightWidth, orbitTextActualHeight));
+
+        const validLuminances = luminances.filter(l => !isNaN(l) && l > 0);
+        const combinedLuminance = validLuminances.reduce((a, b) => a + b, 0) / (validLuminances.length || 1);
+        const sharedTextColor = combinedLuminance > 128 ? '#000000' : '#FFFFFF';
+
+        // Draw the appropriate SVG based on the text color
+        const svgToDraw = sharedTextColor === '#000000' ? blackSvgImage : whiteSvgImage;
+        const svgIsLoaded = sharedTextColor === '#000000' ? blackSvgLoaded : whiteSvgLoaded;
+        if (svgIsLoaded) {
+            const svgAspectRatio = svgToDraw.naturalWidth / svgToDraw.naturalHeight;
+            const svgDrawHeight = orbitTextActualHeight;
+            const svgDrawWidth = svgDrawHeight * svgAspectRatio;
+            const svgX = TEXT_MARGIN;
+            const svgY = yOrbitText - (svgDrawHeight / 2);
+            ctx.drawImage(svgToDraw, svgX, svgY, svgDrawWidth, svgDrawHeight);
+        }
+
+        // Draw the text
+        ctx.fillStyle = sharedTextColor;
+        drawTextWithStretch(ctx, textLeft, TEXT_MARGIN, textYPositionLeft, { fontFamily: ferriteFontFamily, textAlign: 'left' });
+        drawTextWithStretch(ctx, textNewRight, xPosRightTexts, yOrbitText, { fontFamily: orbitFontFamily, textAlign: 'right', kerning: 0, verticalStretch: 1, horizontalStretch: 1 });
+        drawTextWithStretch(ctx, textRight, xPosRightTexts, yFerriteRightText, { fontFamily: ferriteFontFamily, textAlign: 'right' });
+    }
+
+    function handleFile(file) {
+        if (file && file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                image = new Image();
+                image.onload = () => {
+                    const r = image.width / image.height;
+                    lockHorizontal = false; lockVertical = false;
+                    if (r > 1) { imageScale = canvas.height / image.height; lockVertical = true; }
+                    else { imageScale = canvas.width / image.width; lockHorizontal = true; }
+                    if (Math.abs(r-1) < 0.01) { lockHorizontal = true; lockVertical = true; }
+                    imageX = (canvas.width - image.width * imageScale) / 2;
+                    imageY = (canvas.height - image.height * imageScale) / 2;
+                    dropZone.style.display = 'none'; canvas.style.display = 'block'; downloadBtn.disabled = false;
+                    drawImage();
+                };
+                image.src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+        } else alert("Please select a valid image file.");
+    }
+
+    // Event Listeners
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); });
+    dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+    dropZone.addEventListener('click', () => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.onchange = e => handleFile(e.target.files[0]); i.click(); });
+    canvas.addEventListener('dragover', e => { e.preventDefault(); if (e.dataTransfer.types.includes('Files')) canvas.classList.add('drag-over'); });
+    canvas.addEventListener('dragleave', () => canvas.classList.remove('drag-over'));
+    canvas.addEventListener('drop', e => { e.preventDefault(); canvas.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+    [textTopLeftInput, textTopRightInput, textNewRightInput].forEach(el => el.addEventListener('input', drawImage));
+    canvas.addEventListener('mousedown', e => { if (!image) return; isDragging = true; canvas.classList.add('active'); startX = e.offsetX - imageX; startY = e.offsetY - imageY; });
+    canvas.addEventListener('mousemove', e => {
+        if (isDragging && image) {
+            const newX = e.offsetX - startX; const newY = e.offsetY - startY;
+            if (!lockHorizontal) imageX = Math.max(canvas.width - image.width * imageScale, Math.min(newX, 0));
+            if (!lockVertical) imageY = Math.max(canvas.height - image.height * imageScale, Math.min(newY, 0));
+            drawImage();
+        }
+    });
+    const stopDragging = () => { if(isDragging) { isDragging = false; canvas.classList.remove('active'); } };
+    canvas.addEventListener('mouseup', stopDragging);
+    canvas.addEventListener('mouseleave', stopDragging);
+
+    downloadBtn.addEventListener('click', () => {
+        if (!image) return alert("No image to download.");
+        const offscreenCanvas = document.createElement('canvas');
+        const finalSize = 2160;
+        offscreenCanvas.width = finalSize; offscreenCanvas.height = finalSize;
+        const offscreenCtx = offscreenCanvas.getContext('2d');
+        const scaleFactor = finalSize / canvas.width;
+        offscreenCtx.drawImage(image, imageX * scaleFactor, imageY * scaleFactor, image.width * imageScale * scaleFactor, image.height * imageScale * scaleFactor);
+
+        const downloadLuminances = [];
+        const scaledFontSize = TEXT_FONT_SIZE * scaleFactor;
+        const scaledMargin = TEXT_MARGIN * scaleFactor;
+        const scaledKerning = KERNING_VALUE_FERRITE * scaleFactor;
+        const downloadFerriteFamily = ferriteFontLoaded ? `"${FONT_NAME_FERRITE}"` : 'sans-serif';
+        const downloadOrbitFamily = orbitFontLoaded ? `"${FONT_NAME_ORBIT}"` : 'sans-serif';
+        const textLeft = textTopLeftInput.value.toUpperCase();
+        const textRight = textTopRightInput.value.toUpperCase();
+        const textNewRight = textNewRightInput.value.toUpperCase();
+
+        offscreenCtx.font = `bold ${scaledFontSize}px ${downloadFerriteFamily}`;
+        const textLeftWidth = getTextWidthWithKerning(offscreenCtx, textLeft, scaledKerning) * HORIZONTAL_STRETCH_FACTOR_FERRITE;
+        const ferriteTextHeight = scaledFontSize * VERTICAL_STRETCH_FACTOR_FERRITE;
+        downloadLuminances.push(calculateLuminanceForArea(offscreenCtx, scaledMargin, (finalSize / 2) - ferriteTextHeight / 2, textLeftWidth, ferriteTextHeight));
+        const textRightWidth = getTextWidthWithKerning(offscreenCtx, textRight, scaledKerning) * HORIZONTAL_STRETCH_FACTOR_FERRITE;
+        downloadLuminances.push(calculateLuminanceForArea(offscreenCtx, (finalSize - scaledMargin) - textRightWidth, (finalSize / 2) - ferriteTextHeight / 2, textRightWidth, ferriteTextHeight));
+        
+        offscreenCtx.font = `bold ${scaledFontSize}px ${downloadOrbitFamily}`;
+        const textNewRightWidth = getTextWidthWithKerning(offscreenCtx, textNewRight, 0);
+        const orbitTextActualHeight = scaledFontSize;
+        downloadLuminances.push(calculateLuminanceForArea(offscreenCtx, (finalSize - scaledMargin) - textNewRightWidth, (finalSize * 0.42) - orbitTextActualHeight / 2, textNewRightWidth, orbitTextActualHeight));
+
+        const validLuminances = downloadLuminances.filter(l => !isNaN(l) && l > 0);
+        const combinedLuminance = validLuminances.reduce((a, b) => a + b, 0) / (validLuminances.length || 1);
+        const sharedTextColor = combinedLuminance > 128 ? '#000000' : '#FFFFFF';
+
+        const svgToDraw = sharedTextColor === '#000000' ? blackSvgImage : whiteSvgImage;
+        const svgIsLoaded = sharedTextColor === '#000000' ? blackSvgLoaded : whiteSvgLoaded;
+        if (svgIsLoaded) {
+            const svgAspectRatio = svgToDraw.naturalWidth / svgToDraw.naturalHeight;
+            const svgH = scaledFontSize;
+            const svgW = svgH * svgAspectRatio;
+            const svgY = (finalSize * 0.42) - (svgH / 2);
+            offscreenCtx.drawImage(svgToDraw, scaledMargin, svgY, svgW, svgH);
+        }
+
+        offscreenCtx.fillStyle = sharedTextColor;
+        drawTextWithStretch(offscreenCtx, textLeft, scaledMargin, finalSize / 2, { fontFamily: downloadFerriteFamily, fontSize: scaledFontSize, kerning: scaledKerning, textAlign: 'left' });
+        drawTextWithStretch(offscreenCtx, textNewRight, finalSize - scaledMargin, finalSize * 0.42, { fontFamily: downloadOrbitFamily, fontSize: scaledFontSize, textAlign: 'right', kerning: 0, verticalStretch: 1, horizontalStretch: 1 });
+        drawTextWithStretch(offscreenCtx, textRight, finalSize - scaledMargin, finalSize / 2, { fontFamily: downloadFerriteFamily, fontSize: scaledFontSize, kerning: scaledKerning, textAlign: 'right' });
+
+        const link = document.createElement('a');
+        link.href = offscreenCanvas.toDataURL('image/jpeg', 0.9);
+        link.download = 'created-image.jpg';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+
+    loadSvgImages();
+</script>
+</body>
+</html>
